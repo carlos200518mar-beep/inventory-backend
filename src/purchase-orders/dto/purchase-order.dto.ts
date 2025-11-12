@@ -1,0 +1,53 @@
+import { IsUUID, IsArray, ValidateNested, IsOptional, IsDateString, IsNumber, Min, ArrayMinSize, IsObject, IsNotEmpty } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export class PurchaseOrderItemDto {
+  @ApiProperty()
+  @IsUUID()
+  productId: string;
+
+  @ApiProperty({ example: 100 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  qtyOrdered: number;
+
+  @ApiProperty({ example: 25.50 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  unitPrice: number;
+}
+
+export class CreatePurchaseOrderDto {
+  @ApiProperty()
+  @IsUUID()
+  supplierId: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  expectedAt?: string;
+
+  @ApiProperty({ type: [PurchaseOrderItemDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @ArrayMinSize(1)
+  @Type(() => PurchaseOrderItemDto)
+  items: PurchaseOrderItemDto[];
+}
+
+export class ReceivePurchaseOrderDto {
+  @ApiProperty()
+  @IsUUID()
+  warehouseId: string;
+
+  @ApiProperty({ 
+    example: { 'item-id-1': 50, 'item-id-2': 25 },
+    description: 'Map of item IDs to quantities received'
+  })
+  @IsObject()
+  @IsNotEmpty()
+  receivedQuantities: Record<string, number>;
+}

@@ -1,0 +1,49 @@
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import { CustomersService } from './customers.service';
+import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
+import { PaginationMetaDto, StandardResponseDto } from '../common/dto/response.dto';
+import { Auth } from '../common/decorators/auth.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { UserRole } from '@prisma/client';
+
+@ApiTags('Customers')
+@Controller('customers')
+@Auth()
+export class CustomersController {
+  constructor(private readonly service: CustomersService) {}
+
+  @Post()
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  async create(@Body() dto: CreateCustomerDto) {
+    return new StandardResponseDto(await this.service.create(dto));
+  }
+
+  @Get()
+  async findAll(@Query() pagination: PaginationDto) {
+    const { customers, total } = await this.service.findAll(pagination);
+    return new StandardResponseDto(customers, new PaginationMetaDto(pagination.page!, pagination.limit!, total));
+  }
+
+  @Get(':id')
+  async findOne(@Param('id') id: string) {
+    return new StandardResponseDto(await this.service.findOne(id));
+  }
+
+  @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  async update(@Param('id') id: string, @Body() dto: UpdateCustomerDto) {
+    return new StandardResponseDto(await this.service.update(id, dto));
+  }
+
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  async remove(@Param('id') id: string) {
+    return new StandardResponseDto(await this.service.remove(id));
+  }
+}
