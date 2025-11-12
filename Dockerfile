@@ -1,25 +1,4 @@
-# Build stage
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-COPY prisma ./prisma/
-
-# Install dependencies
-RUN npm ci
-
-# Copy source code
-COPY . .
-
-# Generate Prisma Client
-RUN npm run prisma:generate
-
-# Build application
-RUN npm run build
-
-# Production stage
+# Use Node.js LTS
 FROM node:20-alpine
 
 WORKDIR /app
@@ -27,20 +6,23 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only
-RUN npm ci --only=production
+# Install all dependencies
+RUN npm ci
 
 # Copy prisma schema
-COPY --from=builder /app/prisma ./prisma
+COPY prisma ./prisma/
 
-# Copy built application
-COPY --from=builder /app/dist ./dist
-
-# Generate Prisma Client in production
+# Generate Prisma Client
 RUN npx prisma generate
+
+# Copy source code
+COPY . .
+
+# Build application
+RUN npm run build
 
 # Expose port
 EXPOSE 3000
 
 # Start application - use db push for PostgreSQL
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npm run start:prod"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/main"]
