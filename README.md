@@ -213,7 +213,7 @@ Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 ```bash
 curl -X POST http://localhost:3000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{
+  -d '{![alt text](image.png)
     "email": "admin@local",
     "password": "Admin123!"
   }'

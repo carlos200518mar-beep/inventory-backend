@@ -42,5 +42,5 @@ RUN npx prisma generate
 # Expose port
 EXPOSE 3000
 
-# Start application with migrations
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run start:prod"]
+# Start application - use db push for PostgreSQL
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npm run start:prod"]
