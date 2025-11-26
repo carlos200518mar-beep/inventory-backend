@@ -18,6 +18,7 @@ import { PaginationMetaDto, StandardResponseDto } from '../common/dto/response.d
 import { Auth } from '../common/decorators/auth.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '@prisma/client';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @ApiTags('Users')
 @Controller('users')
@@ -31,6 +32,14 @@ export class UsersController {
   @ApiResponse({ status: 201, description: 'User created', type: UserResponseDto })
   async create(@Body() createUserDto: CreateUserDto) {
     const user = await this.usersService.create(createUserDto);
+    return new StandardResponseDto(user);
+  }
+
+  @Get('profile')
+  @ApiOperation({ summary: 'Get current user profile' })
+  @ApiResponse({ status: 200, description: 'Current user profile', type: UserResponseDto })
+  async getProfile(@CurrentUser('sub') userId: string) {
+    const user = await this.usersService.findOne(userId);
     return new StandardResponseDto(user);
   }
 
