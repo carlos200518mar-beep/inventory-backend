@@ -6,6 +6,9 @@ import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class SalesOrdersService {
+  // Store pending warehouse allocations temporarily
+  private _pendingAllocations = new Map<string, Map<string, any[]>>();
+
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateSalesOrderDto) {
@@ -22,9 +25,6 @@ export class SalesOrdersService {
       throw new BadRequestException('One or more products not found');
     }
 
-    // Store allocations temporarily in memory for this order session
-    const orderAllocations = new Map<string, any[]>();
-    
     const order = await this.prisma.salesOrder.create({
       data: {
         customerId: dto.customerId,
@@ -46,6 +46,8 @@ export class SalesOrdersService {
 
     // Store allocations for later fulfillment if provided
     if (dto.items.some(item => item.warehouseAllocations?.length)) {
+      const orderAllocations = new Map<string, any[]>();
+      
       for (let i = 0; i < dto.items.length; i++) {
         const item = dto.items[i];
         const createdItem = order.items[i];
@@ -53,8 +55,9 @@ export class SalesOrdersService {
           orderAllocations.set(createdItem.id, item.warehouseAllocations);
         }
       }
-      // Store in a way the confirm method can access (you might want Redis or DB temp table)
-      (order as any)._pendingAllocations = orderAllocations;
+      
+      // Store in service instance memory
+      this._pendingAllocations.set(order.id, orderAllocations);
     }
 
     return order;
