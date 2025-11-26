@@ -2,6 +2,18 @@ import { IsUUID, IsArray, ValidateNested, IsNumber, Min, ArrayMinSize, IsOptiona
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+export class WarehouseAllocationDto {
+  @ApiProperty()
+  @IsUUID()
+  warehouseId: string;
+
+  @ApiProperty({ example: 5 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  qty: number;
+}
+
 export class SalesOrderItemDto {
   @ApiProperty()
   @IsUUID()
@@ -25,6 +37,16 @@ export class SalesOrderItemDto {
   @IsNumber()
   @Min(0)
   discount?: number;
+
+  @ApiPropertyOptional({ 
+    type: [WarehouseAllocationDto], 
+    description: 'Warehouse distribution for fulfillment (processed when confirming order)' 
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => WarehouseAllocationDto)
+  warehouseAllocations?: WarehouseAllocationDto[];
 }
 
 export class CreateSalesOrderDto {
@@ -40,8 +62,34 @@ export class CreateSalesOrderDto {
   items: SalesOrderItemDto[];
 }
 
-export class FulfillSalesOrderDto {
+export class ItemFulfillmentDto {
   @ApiProperty()
   @IsUUID()
-  warehouseId: string;
+  itemId: string;
+
+  @ApiProperty({ type: [WarehouseAllocationDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => WarehouseAllocationDto)
+  allocations: WarehouseAllocationDto[];
+}
+
+export class FulfillSalesOrderDto {
+  @ApiPropertyOptional({ 
+    description: 'Warehouse ID for single-warehouse fulfillment (legacy)',
+    deprecated: true 
+  })
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
+
+  @ApiPropertyOptional({ 
+    type: [ItemFulfillmentDto],
+    description: 'Multi-warehouse fulfillment per item' 
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ItemFulfillmentDto)
+  items?: ItemFulfillmentDto[];
 }

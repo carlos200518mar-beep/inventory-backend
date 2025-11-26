@@ -2,6 +2,18 @@ import { IsUUID, IsArray, ValidateNested, IsOptional, IsDateString, IsNumber, Mi
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+export class WarehouseAllocationDto {
+  @ApiProperty()
+  @IsUUID()
+  warehouseId: string;
+
+  @ApiProperty({ example: 50 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.001)
+  qty: number;
+}
+
 export class PurchaseOrderItemDto {
   @ApiProperty()
   @IsUUID()
@@ -18,6 +30,13 @@ export class PurchaseOrderItemDto {
   @IsNumber()
   @Min(0)
   unitPrice: number;
+
+  @ApiPropertyOptional({ type: [WarehouseAllocationDto], description: 'Distribution across warehouses' })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => WarehouseAllocationDto)
+  warehouseAllocations?: WarehouseAllocationDto[];
 }
 
 export class CreatePurchaseOrderDto {

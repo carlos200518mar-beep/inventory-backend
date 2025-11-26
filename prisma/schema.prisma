@@ -161,14 +161,16 @@ model InventoryLevel {
 }
 
 model StockMovement {
-  id          String            @id @default(uuid())
-  productId   String
-  warehouseId String
-  type        StockMovementType
-  quantity    Decimal           @db.Decimal(18, 3)
-  reason      String?           @db.Text
-  refDocument String?
-  createdAt   DateTime          @default(now())
+  id              String            @id @default(uuid())
+  productId       String
+  warehouseId     String
+  type            StockMovementType
+  quantity        Decimal           @db.Decimal(18, 3)
+  reason          String?           @db.Text
+  refDocument     String?
+  salesOrderId    String?
+  purchaseOrderId String?
+  createdAt       DateTime          @default(now())
 
   product   Product   @relation(fields: [productId], references: [id])
   warehouse Warehouse @relation(fields: [warehouseId], references: [id])
@@ -176,6 +178,8 @@ model StockMovement {
   @@index([productId])
   @@index([warehouseId])
   @@index([type])
+  @@index([salesOrderId])
+  @@index([purchaseOrderId])
   @@index([createdAt])
   @@map("stock_movements")
 }

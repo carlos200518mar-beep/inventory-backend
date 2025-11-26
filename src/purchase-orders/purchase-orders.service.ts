@@ -22,7 +22,10 @@ export class PurchaseOrdersService {
       throw new BadRequestException('One or more products not found');
     }
 
-    return this.prisma.purchaseOrder.create({
+    // Store allocations temporarily for this order session
+    const orderAllocations = new Map<string, any[]>();
+    
+    const order = await this.prisma.purchaseOrder.create({
       data: {
         supplierId: dto.supplierId,
         expectedAt: dto.expectedAt ? new Date(dto.expectedAt) : null,
@@ -43,6 +46,20 @@ export class PurchaseOrdersService {
         },
       },
     });
+
+    // Store allocations for later receipt if provided
+    if (dto.items.some(item => item.warehouseAllocations?.length)) {
+      for (let i = 0; i < dto.items.length; i++) {
+        const item = dto.items[i];
+        const createdItem = order.items[i];
+        if (item.warehouseAllocations?.length) {
+          orderAllocations.set(createdItem.id, item.warehouseAllocations);
+        }
+      }
+      (order as any)._pendingAllocations = orderAllocations;
+    }
+
+    return order;
   }
 
   async findAll(pagination: PaginationDto) {
@@ -78,8 +95,109 @@ export class PurchaseOrdersService {
     return order;
   }
 
-  async changeStatus(id: string, status: PurchaseOrderStatus) {
-    await this.findOne(id);
+  async changeStatus(id: string, status: PurchaseOrderStatus, receiptData?: any) {
+    const order = await this.findOne(id);
+
+    // If confirming/ordering with allocations, auto-receive
+    if (status === PurchaseOrderStatus.ORDERED) {
+      const allocations = receiptData?.allocations || (order as any)._pendingAllocations;
+
+      if (allocations && allocations.size > 0) {
+        // Validate allocations match quantities
+        for (const item of order.items) {
+          const itemAllocations = allocations.get(item.id);
+          if (itemAllocations && itemAllocations.length > 0) {
+            const allocatedTotal = itemAllocations.reduce(
+              (sum: number, alloc: any) => sum + Number(alloc.qty),
+              0
+            );
+            if (Math.abs(allocatedTotal - Number(item.qtyOrdered)) > 0.01) {
+              throw new BadRequestException(
+                `Item ${item.productId}: allocated quantity (${allocatedTotal}) doesn't match order quantity (${item.qtyOrdered})`
+              );
+            }
+
+            // Verify warehouses exist
+            for (const alloc of itemAllocations) {
+              await this.prisma.warehouse.findUniqueOrThrow({ 
+                where: { id: alloc.warehouseId } 
+              });
+            }
+          }
+        }
+
+        // Process allocations and receive automatically
+        return this.prisma.$transaction(async (tx) => {
+          for (const item of order.items) {
+            const itemAllocations = allocations.get(item.id);
+            if (itemAllocations && itemAllocations.length > 0) {
+              for (const alloc of itemAllocations) {
+                // Create stock movement IN with order reference
+                await tx.stockMovement.create({
+                  data: {
+                    productId: item.productId,
+                    warehouseId: alloc.warehouseId,
+                    type: StockMovementType.IN,
+                    quantity: Number(alloc.qty),
+                    reason: 'Purchase order receipt',
+                    refDocument: `PO-${order.id.slice(0, 8)}`,
+                    purchaseOrderId: order.id,
+                  },
+                });
+
+                // Update inventory level
+                const existing = await tx.inventoryLevel.findUnique({
+                  where: {
+                    productId_warehouseId: {
+                      productId: item.productId,
+                      warehouseId: alloc.warehouseId,
+                    },
+                  },
+                });
+
+                if (existing) {
+                  await tx.inventoryLevel.update({
+                    where: {
+                      productId_warehouseId: {
+                        productId: item.productId,
+                        warehouseId: alloc.warehouseId,
+                      },
+                    },
+                    data: { quantity: { increment: Number(alloc.qty) } },
+                  });
+                } else {
+                  await tx.inventoryLevel.create({
+                    data: {
+                      productId: item.productId,
+                      warehouseId: alloc.warehouseId,
+                      quantity: Number(alloc.qty),
+                    },
+                  });
+                }
+              }
+
+              // Update item as fully received
+              await tx.purchaseOrderItem.update({
+                where: { id: item.id },
+                data: { qtyReceived: item.qtyOrdered },
+              });
+            }
+          }
+
+          // Update order status to RECEIVED
+          return tx.purchaseOrder.update({
+            where: { id },
+            data: { status: PurchaseOrderStatus.RECEIVED },
+            include: {
+              supplier: true,
+              items: { include: { product: true } },
+            },
+          });
+        });
+      }
+    }
+
+    // If no allocations, just change status
     return this.prisma.purchaseOrder.update({
       where: { id },
       data: { status },
@@ -127,7 +245,7 @@ export class PurchaseOrdersService {
           data: { qtyReceived: newQtyReceived },
         });
 
-        // Create stock movement IN
+        // Create stock movement IN with order reference
         await tx.stockMovement.create({
           data: {
             productId: item.productId,
@@ -136,6 +254,7 @@ export class PurchaseOrdersService {
             quantity: receivedQty,
             reason: `PO received`,
             refDocument: `PO-${order.id.slice(0, 8)}`,
+            purchaseOrderId: order.id,
           },
         });
 
