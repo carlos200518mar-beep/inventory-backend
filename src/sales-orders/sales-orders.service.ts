@@ -328,7 +328,7 @@ export class SalesOrdersService {
           where: {
             productId_warehouseId: {
               productId: item.productId,
-              warehouseId: dto.warehouseId,
+              warehouseId: dto.warehouseId!,
             },
           },
           data: {
