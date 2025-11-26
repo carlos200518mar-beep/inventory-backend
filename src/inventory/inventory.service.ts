@@ -42,8 +42,8 @@ export class InventoryService {
 
     // Execute in transaction
     return this.prisma.$transaction(async (tx) => {
-      // Find or create inventory level
-      let inventoryLevel = await tx.inventoryLevel.findUnique({
+      // Find existing inventory level
+      const existingLevel = await tx.inventoryLevel.findUnique({
         where: {
           productId_warehouseId: {
             productId: dto.productId,
@@ -52,9 +52,12 @@ export class InventoryService {
         },
       });
 
+      const oldQuantity = existingLevel ? Number(existingLevel.quantity) : 0;
       const newQuantity = dto.quantity;
+      const adjustment = newQuantity - oldQuantity;
 
-      if (!inventoryLevel) {
+      let inventoryLevel;
+      if (!existingLevel) {
         // Create new inventory level
         inventoryLevel = await tx.inventoryLevel.create({
           data: {
@@ -78,14 +81,14 @@ export class InventoryService {
         });
       }
 
-      // Create stock movement record
+      // Create stock movement record with the adjustment delta
       await tx.stockMovement.create({
         data: {
           productId: dto.productId,
           warehouseId: dto.warehouseId,
           type: StockMovementType.ADJUST,
-          quantity: newQuantity,
-          reason: dto.reason || 'Manual adjustment',
+          quantity: adjustment, // ✅ Guarda el delta, no la cantidad total
+          reason: dto.reason || `Adjustment: ${oldQuantity} → ${newQuantity}`,
         },
       });
 

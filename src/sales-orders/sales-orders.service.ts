@@ -284,6 +284,58 @@ export class SalesOrdersService {
       });
     }
 
+    // Check if there are pending allocations from create()
+    const allocations = this._pendingAllocations.get(order.id);
+    if (allocations && allocations.size > 0) {
+      // Use stored allocations (same logic as confirm with allocations)
+      return this.prisma.$transaction(async (tx) => {
+        for (const item of order.items) {
+          const itemAllocations = allocations.get(item.id);
+          if (itemAllocations && itemAllocations.length > 0) {
+            for (const alloc of itemAllocations) {
+              // Create stock movement OUT with order reference
+              await tx.stockMovement.create({
+                data: {
+                  productId: item.productId,
+                  warehouseId: alloc.warehouseId,
+                  type: StockMovementType.OUT,
+                  quantity: Number(alloc.qty),
+                  reason: 'Sales order fulfillment',
+                  refDocument: `SO-${order.id.slice(0, 8)}`,
+                  salesOrderId: order.id,
+                },
+              });
+
+              // Update inventory level
+              await tx.inventoryLevel.update({
+                where: {
+                  productId_warehouseId: {
+                    productId: item.productId,
+                    warehouseId: alloc.warehouseId,
+                  },
+                },
+                data: {
+                  quantity: { decrement: Number(alloc.qty) },
+                },
+              });
+            }
+          }
+        }
+
+        // Clear allocations after processing
+        this._pendingAllocations.delete(order.id);
+
+        return tx.salesOrder.update({
+          where: { id },
+          data: { status: SalesOrderStatus.FULFILLED },
+          include: {
+            customer: true,
+            items: { include: { product: true } },
+          },
+        });
+      });
+    }
+
     // Legacy: Single warehouse fulfillment
     if (!dto.warehouseId) {
       throw new BadRequestException('Either warehouseId or items with allocations must be provided');
