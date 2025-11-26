@@ -209,25 +209,82 @@ export class PurchaseOrdersService {
   }
 
   async receive(id: string, dto: ReceivePurchaseOrderDto) {
-    console.log('Receiving order:', id);
-    console.log('DTO received:', JSON.stringify(dto, null, 2));
-    
     const order = await this.findOne(id);
-    console.log('Order found:', order.id, 'Status:', order.status);
 
     if (order.status === PurchaseOrderStatus.RECEIVED) {
       throw new BadRequestException('Order already fully received');
     }
 
-    // Verify warehouse exists
-    console.log('Looking for warehouse:', dto.warehouseId);
-    try {
-      await this.prisma.warehouse.findUniqueOrThrow({ where: { id: dto.warehouseId } });
-      console.log('Warehouse found');
-    } catch (error) {
-      console.error('Warehouse not found:', error);
-      throw new BadRequestException(`Warehouse ${dto.warehouseId} not found`);
+    // Check if there are pending allocations from create()
+    const allocations = this._pendingAllocations.get(order.id);
+    if (allocations && allocations.size > 0) {
+      // Use stored allocations (multi-warehouse receive)
+      return this.prisma.$transaction(async (tx) => {
+        for (const item of order.items) {
+          const itemAllocations = allocations.get(item.id);
+          if (itemAllocations && itemAllocations.length > 0) {
+            for (const alloc of itemAllocations) {
+              // Create stock movement IN with order reference
+              await tx.stockMovement.create({
+                data: {
+                  productId: item.productId,
+                  warehouseId: alloc.warehouseId,
+                  type: StockMovementType.IN,
+                  quantity: Number(alloc.qty),
+                  reason: 'Purchase order receipt',
+                  refDocument: `PO-${order.id.slice(0, 8)}`,
+                  purchaseOrderId: order.id,
+                },
+              });
+
+              // Update or create inventory level
+              await tx.inventoryLevel.upsert({
+                where: {
+                  productId_warehouseId: {
+                    productId: item.productId,
+                    warehouseId: alloc.warehouseId,
+                  },
+                },
+                update: {
+                  quantity: { increment: Number(alloc.qty) },
+                },
+                create: {
+                  productId: item.productId,
+                  warehouseId: alloc.warehouseId,
+                  quantity: Number(alloc.qty),
+                },
+              });
+            }
+          }
+
+          // Update item as fully received
+          await tx.purchaseOrderItem.update({
+            where: { id: item.id },
+            data: { qtyReceived: item.qtyOrdered },
+          });
+        }
+
+        // Clear allocations after processing
+        this._pendingAllocations.delete(order.id);
+
+        return tx.purchaseOrder.update({
+          where: { id },
+          data: { status: PurchaseOrderStatus.RECEIVED },
+          include: {
+            supplier: true,
+            items: { include: { product: true } },
+          },
+        });
+      });
     }
+
+    // Legacy: Single warehouse receive
+    if (!dto.warehouseId) {
+      throw new BadRequestException('Either use stored allocations or provide warehouseId');
+    }
+
+    // Verify warehouse exists
+    await this.prisma.warehouse.findUniqueOrThrow({ where: { id: dto.warehouseId } });
 
     console.log('Received quantities:', dto.receivedQuantities);
     console.log('Number of items to receive:', Object.keys(dto.receivedQuantities || {}).length);
