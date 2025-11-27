@@ -289,12 +289,15 @@ export class PurchaseOrdersService {
     // Verify warehouse exists
     await this.prisma.warehouse.findUniqueOrThrow({ where: { id: dto.warehouseId } });
 
-    console.log('Received quantities:', dto.receivedQuantities);
-    console.log('Number of items to receive:', Object.keys(dto.receivedQuantities || {}).length);
+    const warehouseId = dto.warehouseId;
+    const receivedQuantities = dto.receivedQuantities;
+
+    console.log('Received quantities:', receivedQuantities);
+    console.log('Number of items to receive:', Object.keys(receivedQuantities).length);
 
     return this.prisma.$transaction(async (tx) => {
       // Update items with received quantities
-      for (const [itemId, receivedQty] of Object.entries(dto.receivedQuantities)) {
+      for (const [itemId, receivedQty] of Object.entries(receivedQuantities)) {
         const item = order.items.find(i => i.id === itemId);
         if (!item) continue;
 
@@ -309,7 +312,7 @@ export class PurchaseOrdersService {
         await tx.stockMovement.create({
           data: {
             productId: item.productId,
-            warehouseId: dto.warehouseId,
+            warehouseId: warehouseId,
             type: StockMovementType.IN,
             quantity: receivedQty,
             reason: `PO received`,
@@ -323,7 +326,7 @@ export class PurchaseOrdersService {
           where: {
             productId_warehouseId: {
               productId: item.productId,
-              warehouseId: dto.warehouseId,
+              warehouseId: warehouseId,
             },
           },
         });
@@ -333,7 +336,7 @@ export class PurchaseOrdersService {
             where: {
               productId_warehouseId: {
                 productId: item.productId,
-                warehouseId: dto.warehouseId,
+                warehouseId: warehouseId,
               },
             },
             data: { quantity: { increment: receivedQty } },
@@ -342,7 +345,7 @@ export class PurchaseOrdersService {
           await tx.inventoryLevel.create({
             data: {
               productId: item.productId,
-              warehouseId: dto.warehouseId,
+              warehouseId: warehouseId,
               quantity: receivedQty,
             },
           });
