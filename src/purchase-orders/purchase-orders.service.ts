@@ -211,7 +211,7 @@ export class PurchaseOrdersService {
     });
   }
 
-  async receive(id: string, dto: ReceivePurchaseOrderDto) {
+  async receive(id: string, dto?: ReceivePurchaseOrderDto) {
     const order = await this.findOne(id);
 
     if (order.status === PurchaseOrderStatus.RECEIVED) {
@@ -282,7 +282,7 @@ export class PurchaseOrdersService {
     }
 
     // Legacy: Single warehouse receive
-    if (!dto.warehouseId || !dto.receivedQuantities) {
+    if (!dto || !dto.warehouseId || !dto.receivedQuantities) {
       throw new BadRequestException('No stored allocations found. Provide warehouseId and receivedQuantities for manual receive.');
     }
 
