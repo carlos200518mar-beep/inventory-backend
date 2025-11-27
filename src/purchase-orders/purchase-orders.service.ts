@@ -282,8 +282,8 @@ export class PurchaseOrdersService {
     }
 
     // Legacy: Single warehouse receive
-    if (!dto.warehouseId) {
-      throw new BadRequestException('Either use stored allocations or provide warehouseId');
+    if (!dto.warehouseId || !dto.receivedQuantities) {
+      throw new BadRequestException('No stored allocations found. Provide warehouseId and receivedQuantities for manual receive.');
     }
 
     // Verify warehouse exists

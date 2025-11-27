@@ -58,15 +58,16 @@ export class CreatePurchaseOrderDto {
 }
 
 export class ReceivePurchaseOrderDto {
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsUUID()
-  warehouseId: string;
+  warehouseId?: string;
 
-  @ApiProperty({ 
+  @ApiPropertyOptional({ 
     example: { 'item-id-1': 50, 'item-id-2': 25 },
-    description: 'Map of item IDs to quantities received'
+    description: 'Map of item IDs to quantities received (for single-warehouse mode)'
   })
+  @IsOptional()
   @IsObject()
-  @IsNotEmpty()
-  receivedQuantities: Record<string, number>;
+  receivedQuantities?: Record<string, number>;
 }
