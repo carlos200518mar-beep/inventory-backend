@@ -6,6 +6,9 @@ import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class PurchaseOrdersService {
+  // Store pending warehouse allocations temporarily
+  private _pendingAllocations = new Map<string, Map<string, any[]>>();
+
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreatePurchaseOrderDto) {
