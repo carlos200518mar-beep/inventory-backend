@@ -59,7 +59,8 @@ export class PurchaseOrdersService {
           orderAllocations.set(createdItem.id, item.warehouseAllocations);
         }
       }
-      (order as any)._pendingAllocations = orderAllocations;
+      // Store in class-level Map for persistence during server session
+      this._pendingAllocations.set(order.id, orderAllocations);
     }
 
     return order;
