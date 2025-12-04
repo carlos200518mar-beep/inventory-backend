@@ -290,7 +290,9 @@ export class SalesOrdersService {
         });
 
         // Create financial transaction for the sale
-        await this.createFinancialTransaction(tx, updatedOrder, 'SYSTEM');
+        if (userId) {
+          await this.createFinancialTransaction(tx, updatedOrder, userId);
+        }
 
         return updatedOrder;
       });
@@ -347,7 +349,9 @@ export class SalesOrdersService {
         });
 
         // Create financial transaction for the sale
-        await this.createFinancialTransaction(tx, updatedOrder, 'SYSTEM');
+        if (userId) {
+          await this.createFinancialTransaction(tx, updatedOrder, userId);
+        }
 
         return updatedOrder;
       });
@@ -416,7 +420,9 @@ export class SalesOrdersService {
       });
 
       // Create financial transaction for the sale
-      await this.createFinancialTransaction(tx, updatedOrder, 'SYSTEM');
+      if (userId) {
+        await this.createFinancialTransaction(tx, updatedOrder, userId);
+      }
 
       return updatedOrder;
     });
