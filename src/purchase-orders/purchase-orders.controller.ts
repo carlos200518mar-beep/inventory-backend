@@ -6,6 +6,7 @@ import { PaginationDto } from '../common/dto/pagination.dto';
 import { PaginationMetaDto, StandardResponseDto } from '../common/dto/response.dto';
 import { Auth } from '../common/decorators/auth.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole, PurchaseOrderStatus } from '@prisma/client';
 
