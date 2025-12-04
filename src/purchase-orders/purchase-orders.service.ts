@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { FinancesService } from '../finances/finances.service';
 import { CreatePurchaseOrderDto, ReceivePurchaseOrderDto } from './dto/purchase-order.dto';
-import { PurchaseOrderStatus, StockMovementType } from '@prisma/client';
+import { PurchaseOrderStatus, StockMovementType, Prisma } from '@prisma/client';
 import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Injectable()
@@ -9,7 +10,10 @@ export class PurchaseOrdersService {
   // Store pending warehouse allocations temporarily
   private _pendingAllocations = new Map<string, Map<string, any[]>>();
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private financesService: FinancesService,
+  ) {}
 
   async create(dto: CreatePurchaseOrderDto) {
     // Verify supplier exists
@@ -212,7 +216,47 @@ export class PurchaseOrdersService {
     });
   }
 
-  async receive(id: string, dto?: ReceivePurchaseOrderDto) {
+  private async createPurchaseFinancialTransaction(
+    tx: Prisma.TransactionClient,
+    order: any,
+    userId: string,
+  ) {
+    try {
+      // Find "Inventory Purchases" category
+      const purchaseCategory = await tx.financialCategory.findFirst({
+        where: { name: 'Inventory Purchases', type: 'EXPENSE' },
+      });
+
+      if (!purchaseCategory) {
+        console.error('Inventory Purchases category not found');
+        return;
+      }
+
+      // Calculate total amount from items
+      const totalAmount = order.items.reduce((sum: number, item: any) => {
+        return sum + (Number(item.qtyOrdered) * Number(item.unitPrice));
+      }, 0);
+
+      // Create financial transaction
+      await tx.transaction.create({
+        data: {
+          type: 'EXPENSE',
+          categoryId: purchaseCategory.id,
+          amount: totalAmount,
+          description: `Compra ${order.supplier.name} - PO-${order.id.slice(0, 8)}`,
+          transactionDate: new Date(),
+          reference: `PO-${order.id.slice(0, 8)}`,
+          purchaseOrderId: order.id,
+          createdBy: userId,
+        },
+      });
+    } catch (error) {
+      console.error('Error creating financial transaction:', error);
+      // Don't fail the receive operation if transaction creation fails
+    }
+  }
+
+  async receive(id: string, dto?: ReceivePurchaseOrderDto, userId?: string) {
     const order = await this.findOne(id);
 
     if (order.status === PurchaseOrderStatus.RECEIVED) {
@@ -271,7 +315,7 @@ export class PurchaseOrdersService {
         // Clear allocations after processing
         this._pendingAllocations.delete(order.id);
 
-        return tx.purchaseOrder.update({
+        const updatedOrder = await tx.purchaseOrder.update({
           where: { id },
           data: { status: PurchaseOrderStatus.RECEIVED },
           include: {
@@ -279,6 +323,13 @@ export class PurchaseOrdersService {
             items: { include: { product: true } },
           },
         });
+
+        // Create financial transaction for purchase
+        if (userId) {
+          await this.createPurchaseFinancialTransaction(tx, updatedOrder, userId);
+        }
+
+        return updatedOrder;
       });
     }
 
@@ -362,7 +413,7 @@ export class PurchaseOrdersService {
         item => Number(item.qtyReceived) >= Number(item.qtyOrdered),
       );
 
-      return tx.purchaseOrder.update({
+      const updatedOrder = await tx.purchaseOrder.update({
         where: { id },
         data: {
           status: allReceived ? PurchaseOrderStatus.RECEIVED : PurchaseOrderStatus.ORDERED,
@@ -372,6 +423,13 @@ export class PurchaseOrdersService {
           items: { include: { product: true } },
         },
       });
+
+      // Create financial transaction when fully received
+      if (allReceived && userId) {
+        await this.createPurchaseFinancialTransaction(tx, updatedOrder, userId);
+      }
+
+      return updatedOrder;
     });
   }
 }

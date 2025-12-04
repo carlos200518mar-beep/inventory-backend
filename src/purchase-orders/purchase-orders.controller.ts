@@ -47,7 +47,11 @@ export class PurchaseOrdersController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Receive items (creates stock movements IN)' })
-  async receive(@Param('id') id: string, @Body() dto?: ReceivePurchaseOrderDto) {
-    return new StandardResponseDto(await this.service.receive(id, dto || {} as ReceivePurchaseOrderDto));
+  async receive(
+    @Param('id') id: string,
+    @Body() dto?: ReceivePurchaseOrderDto,
+    @CurrentUser('sub') userId?: string,
+  ) {
+    return new StandardResponseDto(await this.service.receive(id, dto || {} as ReceivePurchaseOrderDto, userId));
   }
 }

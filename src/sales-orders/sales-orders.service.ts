@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { FinancesService } from '../finances/finances.service';
 import { CreateSalesOrderDto, FulfillSalesOrderDto } from './dto/sales-order.dto';
-import { SalesOrderStatus, StockMovementType } from '@prisma/client';
+import { SalesOrderStatus, StockMovementType, Prisma } from '@prisma/client';
 import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Injectable()
@@ -9,7 +10,10 @@ export class SalesOrdersService {
   // Store pending warehouse allocations temporarily
   private _pendingAllocations = new Map<string, Map<string, any[]>>();
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private financesService: FinancesService,
+  ) {}
 
   async create(dto: CreateSalesOrderDto) {
     // Verify customer exists
@@ -276,7 +280,7 @@ export class SalesOrdersService {
           }
         }
 
-        return tx.salesOrder.update({
+        const updatedOrder = await tx.salesOrder.update({
           where: { id },
           data: { status: SalesOrderStatus.FULFILLED },
           include: {
@@ -284,6 +288,11 @@ export class SalesOrdersService {
             items: { include: { product: true } },
           },
         });
+
+        // Create financial transaction for the sale
+        await this.createFinancialTransaction(tx, updatedOrder, 'SYSTEM');
+
+        return updatedOrder;
       });
     }
 
@@ -328,7 +337,7 @@ export class SalesOrdersService {
         // Clear allocations after processing
         this._pendingAllocations.delete(order.id);
 
-        return tx.salesOrder.update({
+        const updatedOrder = await tx.salesOrder.update({
           where: { id },
           data: { status: SalesOrderStatus.FULFILLED },
           include: {
@@ -336,6 +345,11 @@ export class SalesOrdersService {
             items: { include: { product: true } },
           },
         });
+
+        // Create financial transaction for the sale
+        await this.createFinancialTransaction(tx, updatedOrder, 'SYSTEM');
+
+        return updatedOrder;
       });
     }
 
@@ -392,7 +406,7 @@ export class SalesOrdersService {
         });
       }
 
-      return tx.salesOrder.update({
+      const updatedOrder = await tx.salesOrder.update({
         where: { id },
         data: { status: SalesOrderStatus.FULFILLED },
         include: {
@@ -400,6 +414,48 @@ export class SalesOrdersService {
           items: { include: { product: true } },
         },
       });
+
+      // Create financial transaction for the sale
+      await this.createFinancialTransaction(tx, updatedOrder, 'SYSTEM');
+
+      return updatedOrder;
     });
+  }
+
+  private async createFinancialTransaction(tx: any, order: any, userId: string) {
+    try {
+      // Get "Sales Revenue" category
+      const salesCategory = await tx.financialCategory.findFirst({
+        where: { name: 'Sales Revenue', type: 'INCOME' },
+      });
+
+      if (!salesCategory) {
+        console.warn('Sales Revenue category not found, skipping transaction creation');
+        return;
+      }
+
+      // Calculate total amount
+      const totalAmount = order.items.reduce((sum: number, item: any) => {
+        const itemTotal = Number(item.qty) * Number(item.unitPrice) - Number(item.discount || 0);
+        return sum + itemTotal;
+      }, 0);
+
+      // Create income transaction
+      await tx.transaction.create({
+        data: {
+          type: 'INCOME',
+          categoryId: salesCategory.id,
+          amount: new Prisma.Decimal(totalAmount),
+          description: `Venta ${order.customer.name} - SO-${order.id.slice(0, 8)}`,
+          transactionDate: new Date(),
+          reference: `SO-${order.id.slice(0, 8)}`,
+          salesOrderId: order.id,
+          createdBy: userId,
+        },
+      });
+    } catch (error) {
+      console.error('Error creating financial transaction:', error);
+      // Don't fail the fulfillment if transaction creation fails
+    }
   }
 }
