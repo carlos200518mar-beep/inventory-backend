@@ -18,7 +18,7 @@ export class FinancesController {
   @Post('transactions')
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   createTransaction(
-    @CurrentUser('id') userId: string,
+    @CurrentUser('sub') userId: string,
     @Body() createTransactionDto: CreateTransactionDto,
   ) {
     return this.financesService.createTransaction(userId, createTransactionDto);
