@@ -6,6 +6,7 @@ import { PaginationDto } from '../common/dto/pagination.dto';
 import { PaginationMetaDto, StandardResponseDto } from '../common/dto/response.dto';
 import { Auth } from '../common/decorators/auth.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { UserRole } from '@prisma/client';
 
@@ -47,7 +48,11 @@ export class SalesOrdersController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiOperation({ summary: 'Fulfill order (creates stock movements OUT)' })
-  async fulfill(@Param('id') id: string, @Body() dto: FulfillSalesOrderDto) {
-    return new StandardResponseDto(await this.service.fulfill(id, dto));
+  async fulfill(
+    @Param('id') id: string,
+    @Body() dto: FulfillSalesOrderDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return new StandardResponseDto(await this.service.fulfill(id, dto, userId));
   }
 }

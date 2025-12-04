@@ -199,7 +199,7 @@ export class SalesOrdersService {
     });
   }
 
-  async fulfill(id: string, dto: FulfillSalesOrderDto) {
+  async fulfill(id: string, dto: FulfillSalesOrderDto, userId?: string) {
     const order = await this.findOne(id);
 
     if (order.status === SalesOrderStatus.FULFILLED) {
