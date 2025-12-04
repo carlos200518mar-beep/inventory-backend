@@ -199,6 +199,75 @@ async function main() {
   console.log('📝 Test Credentials:');
   console.log('   Admin - Email: admin@local, Password: Admin123!');
   console.log('   Manager - Email: manager@local, Password: Manager123!');
+
+  // Create Financial Categories
+  const salesCategory = await prisma.financialCategory.upsert({
+    where: { name: 'Sales Revenue' },
+    update: {},
+    create: {
+      name: 'Sales Revenue',
+      type: 'INCOME',
+      color: '#10B981',
+      icon: '💰',
+    },
+  });
+
+  const purchasesCategory = await prisma.financialCategory.upsert({
+    where: { name: 'Inventory Purchases' },
+    update: {},
+    create: {
+      name: 'Inventory Purchases',
+      type: 'EXPENSE',
+      color: '#EF4444',
+      icon: '📦',
+    },
+  });
+
+  await prisma.financialCategory.upsert({
+    where: { name: 'Utilities' },
+    update: {},
+    create: {
+      name: 'Utilities',
+      type: 'EXPENSE',
+      color: '#F59E0B',
+      icon: '⚡',
+    },
+  });
+
+  await prisma.financialCategory.upsert({
+    where: { name: 'Rent' },
+    update: {},
+    create: {
+      name: 'Rent',
+      type: 'EXPENSE',
+      color: '#8B5CF6',
+      icon: '🏢',
+    },
+  });
+
+  await prisma.financialCategory.upsert({
+    where: { name: 'Salaries' },
+    update: {},
+    create: {
+      name: 'Salaries',
+      type: 'EXPENSE',
+      color: '#EC4899',
+      icon: '👥',
+    },
+  });
+
+  await prisma.financialCategory.upsert({
+    where: { name: 'Other Income' },
+    update: {},
+    create: {
+      name: 'Other Income',
+      type: 'INCOME',
+      color: '#06B6D4',
+      icon: '➕',
+    },
+  });
+
+  console.log('✅ Financial categories created');
 }
 
 main()

@@ -15,6 +15,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { StockMovementsModule } from './stock-movements/stock-movements.module';
 import { PurchaseOrdersModule } from './purchase-orders/purchase-orders.module';
 import { SalesOrdersModule } from './sales-orders/sales-orders.module';
+import { FinancesModule } from './finances/finances.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 @Module({
@@ -34,6 +35,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
     StockMovementsModule,
     PurchaseOrdersModule,
     SalesOrdersModule,
+    FinancesModule,
   ],
   controllers: [AppController],
   providers: [

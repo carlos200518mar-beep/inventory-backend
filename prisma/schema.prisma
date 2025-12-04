@@ -43,6 +43,11 @@ enum ProductUnit {
   L
 }
 
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
 model User {
   id           String    @id @default(uuid())
   email        String    @unique
@@ -249,4 +254,46 @@ model SalesOrderItem {
   @@index([salesOrderId])
   @@index([productId])
   @@map("sales_order_items")
+}
+
+model FinancialCategory {
+  id        String           @id @default(uuid())
+  name      String           @unique
+  type      TransactionType
+  color     String?          @default("#6B7280")
+  icon      String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  deletedAt DateTime?
+
+  transactions Transaction[]
+
+  @@index([type])
+  @@map("financial_categories")
+}
+
+model Transaction {
+  id                String           @id @default(uuid())
+  type              TransactionType
+  categoryId        String
+  amount            Decimal          @db.Decimal(18, 2)
+  description       String?          @db.Text
+  transactionDate   DateTime         @default(now())
+  reference         String?
+  salesOrderId      String?
+  purchaseOrderId   String?
+  createdBy         String
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+
+  category FinancialCategory @relation(fields: [categoryId], references: [id])
+
+  @@index([type])
+  @@index([categoryId])
+  @@index([transactionDate])
+  @@index([salesOrderId])
+  @@index([purchaseOrderId])
+  @@index([createdBy])
+  @@map("transactions")
 }
